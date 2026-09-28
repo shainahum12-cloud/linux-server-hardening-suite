@@ -27,3 +27,71 @@ Run the following command as **root** or via `sudo`:
 
 ```bash
 curl -sSL [https://raw.githubusercontent.com/shainahum12-cloud/linux-server-hardening-suite/main/secure-linux-server.sh](https://raw.githubusercontent.com/shainahum12-cloud/linux-server-hardening-suite/main/secure-linux-server.sh) | sudo bash
+
+
+#!/usr/bin/env bash
+# ==============================================================================
+# Script Name: secure-linux-server.sh
+# Description: Automated Linux Server Hardening & Security Audit Tool
+# Author: Shai Nahum (GitHub: shainahum12-cloud)
+# License: Apache-2.0
+# ==============================================================================
+
+set -euo pipefail
+
+# Ensure script is run with root privileges
+if [[ $EUID -ne 0 ]]; then
+   echo "[!] This script must be run as root (use sudo)." 
+   exit 1
+fi
+
+echo "=================================================="
+echo "   Linux Server Hardening Suite by Shai Nahum     "
+echo "=================================================="
+
+# 1. Update System Packages
+echo -e "\n[*] Updating package lists and upgrading system packages..."
+apt-get update -y && apt-get upgrade -y
+
+# 2. Configure Uncomplicated Firewall (UFW)
+echo -e "\n[*] Configuring UFW Firewall..."
+if command -v ufw >/dev/null 2>&1; then
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp comment 'Allow SSH'
+    ufw allow 80/tcp comment 'Allow HTTP'
+    ufw allow 443/tcp comment 'Allow HTTPS'
+    ufw --force enable
+    echo "[+] UFW Enabled with secure defaults (SSH, HTTP, HTTPS allowed)."
+else
+    echo "[!] UFW is not installed. Installing UFW..."
+    apt-get install -y ufw
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw --force enable
+fi
+
+# 3. Secure SSH Configuration
+echo -e "\n[*] Hardening SSH Configuration..."
+SSH_CONFIG="/etc/ssh/sshd_config"
+if [[ -f "$SSH_CONFIG" ]]; then
+    cp "$SSH_CONFIG" "${SSH_CONFIG}.bak_$(date +%F)"
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSH_CONFIG"
+    sed -i 's/^#\?MaxAuthTries.*/MaxAuthTries 3/' "$SSH_CONFIG"
+    sed -i 's/^#\?X11Forwarding.*/X11Forwarding no/' "$SSH_CONFIG"
+    systemctl restart sshd || systemctl restart ssh
+    echo "[+] SSH hardened: Root login disabled, auth tries limited to 3."
+fi
+
+# 4. Remove Unnecessary Packages & Clean Up
+echo -e "\n[*] Removing unused packages and clearing cache..."
+apt-get autoremove -y && apt-get clean
+
+echo -e "\n=================================================="
+echo "   Hardening Complete! Server is now secured.    "
+echo "=================================================="
+
+
